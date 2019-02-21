@@ -54,7 +54,7 @@ For development locally:
 
 ### Known issues
 1. HTTP triggers in config does not actually create the right config (makes API endpoints etc, but does not create the actual trigger), you have to manually create the triggers
-2. OSS triggers to work, tho keep in mind that one bucket can only have one trigger, you might need to disable your current trigger before doing this
+2. OSS triggers does work, tho keep in mind that one bucket can only have one trigger, you might need to disable your current trigger before doing this
 3. Upload takes time as your node_modules folder size grow, because this plugin actually zips the entire repo and upload to OSS then update the function from OSS
 4. Environment variables is not tested yet, just set them manually
 
