@@ -26,6 +26,10 @@ const ramClientSym = Symbol('ram-client');
 const slsClientSym = Symbol('sls-client');
 const PROJECT_DELAY = 1500;
 
+
+const DEFAULT_TIMEOUT = 10000;
+const UPLOAD_TIMEOUT = 600000;
+
 class AliyunProvider {
   static getProviderName () {
     return PROVIDER_NAME;
@@ -811,7 +815,7 @@ class AliyunProvider {
   uploadObject (objectName, filePath) {
     const ossClient = this.ossClient;
     return co(function* uploadObject () {
-      return yield ossClient.put(objectName, filePath, { timeout: 600000 });
+      return yield ossClient.put(objectName, filePath, { timeout: UPLOAD_TIMEOUT });
     });
   }
 
@@ -1057,7 +1061,7 @@ class AliyunProvider {
     try {
       const res = await this.ramClient.getRole({
         RoleName: roleName
-      }, { timeout: 10000 });
+      }, { timeout: DEFAULT_TIMEOUT });
       return res.Role;
     } catch (err) {
       if (err.name === 'EntityNotExist.RoleError') {
@@ -1070,7 +1074,7 @@ class AliyunProvider {
   deleteRole (roleName) {
     return this.ramClient.deleteRole({
       RoleName: roleName
-    });
+    }, { timeout: DEFAULT_TIMEOUT });
   }
 
   /**
@@ -1083,7 +1087,7 @@ class AliyunProvider {
       RoleName: role.RoleName,
       Description: role.Description,
       AssumeRolePolicyDocument: JSON.stringify(role.AssumeRolePolicyDocument)
-    }, { timeout: 10000 });
+    }, { timeout: DEFAULT_TIMEOUT });
     return res.Role;
   }
 
@@ -1094,7 +1098,7 @@ class AliyunProvider {
   async getPoliciesForRole (roleName) {
     const res = await this.ramClient.listPoliciesForRole({
       RoleName: roleName
-    }, { timeout: 10000 });
+    }, { timeout: DEFAULT_TIMEOUT });
     return res.Policies.Policy;
   }
 
@@ -1108,7 +1112,7 @@ class AliyunProvider {
       const res = await this.ramClient.getPolicy({
         PolicyName: policyName,
         PolicyType: policyType
-      });
+      }, { timeout: DEFAULT_TIMEOUT });
       return res.Policy;
     } catch (err) {
       if (err.name === 'EntityNotExist.PolicyError') {
@@ -1127,7 +1131,7 @@ class AliyunProvider {
       PolicyName: policy.PolicyName,
       Description: policy.Description,
       PolicyDocument: JSON.stringify(policy.PolicyDocument)
-    });
+    }, { timeout: DEFAULT_TIMEOUT });
   }
 
   /**
@@ -1152,7 +1156,7 @@ class AliyunProvider {
       RoleName: role.RoleName,
       PolicyName: policy.PolicyName,
       PolicyType: policy.PolicyType
-    });
+    }, { timeout: DEFAULT_TIMEOUT });
   }
 
   /**
