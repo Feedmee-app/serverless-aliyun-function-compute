@@ -1,0 +1,30 @@
+service: ingest-catalogue-serverless
+
+provider:
+  name: aliyun
+  runtime: nodejs8
+  credentials: ~/.aliyuncli/credentials
+
+plugins:
+  localPath: './plugins'
+  modules:
+    - serverless-aliyun-function-compute
+
+package:
+  exclude:
+    - package-lock.json
+    - .gitignore
+    - .git/**
+# Functions below are as alicloud's documentation
+# timeout & memorySize IS supported
+#functions:
+#  ingest:
+#    handler: index.ingestTrigger
+#    timeout: 600
+#    memorySize: 1024
+#    events:
+#      - oss:
+#          sourceArn: acs:oss:ap-southeast-2:5970938717458294:ingest-catalogue
+#          triggerConfig:
+#            events:
+#              - oss:ObjectCreated:*

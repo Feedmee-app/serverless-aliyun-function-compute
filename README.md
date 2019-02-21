@@ -1,162 +1,62 @@
 # Aliyun Function Compute Serverless Plugin
+### This forked repo contains customizations & bugfixes, details in changelog
+View the original README [here](https://github.com/aliyun/serverless-aliyun-function-compute/blob/master/README.md)
 
-This plugin enables Aliyun Function Compute support within the Serverless Framework.
+Steps to prepare your repo for this serverless plugin:
+1. On repo root, ```mkdir plugins && cd plugins && git submodule add https://github.com/Feedmee-app/serverless-aliyun-function-compute.git```
+2. Copy serverless.yml from this ./template into your repo's root, then customize functions. Example [here](./test/project/serverless.yml), you can take [this](./test/project) as a template for your function
+3. Make a circleCI config file, template [here](./template/.circleci)
+4. Add .serverless to .gitignore
+5. Add these to your package.json (drop these versions if you have some of the libraries)
+	```json
+	  "dependencies": {
+		"@alicloud/cloudapi": "^1.1.0",
+		"@alicloud/fc": "^1.1.0",
+		"@alicloud/log": "^1.0.0",
+		"@alicloud/ram": "^1.0.0",
+		"ali-oss": "^4.8.0",
+		"chalk": "^2.0.1",
+		"co": "^4.6.0",
+		"fs-extra": "^3.0.1",
+		"ini": "^1.3.4",
+		"lodash": "^4.17.4"
+	  },
+	  "devDependencies": {
+		"eslint": "^4.6.1",
+		"jest": "^20.0.4",
+		"sinon": "^2.4.1"
+	  }
+	```
+6. Add the following environment variables to circleCI
+	```yaml
+	$ACCESS_KEY_ID for access key id
+	$ACCESS_KEY_SECRET for key secret
+	$ACCOUNT_ID for account id
+	```
+	You can change the variable names as you wish, but this is the defaults for circleCI to write to config file.
+	Future versions of this repo will use the env directly instead of reading from the config file
+* Notes:
+	- DO NOT run ```serverless plugin install --name serverless-aliyun-function-compute```, as it installs the public version. 
 
-- [![Build Status](https://travis-ci.org/aliyun/serverless-aliyun-function-compute.svg?branch=master)](https://travis-ci.org/aliyun/serverless-aliyun-function-compute)
+For development locally:
+1. ```npm install -g serverless```
+2. echo
+	```
+	[default]
+	aliyun_access_key_id = XXXX
+	aliyun_access_key_secret = XXXX
+	aliyun_account_id = XXXX
+	```
+	to ~/.aliyuncli/credentials
+3. ```serverless deploy --stage production --region ap-southeast-2```
+	
+	--stage is just a name, think of branches
 
-## Getting started
+### Known issues
+1. HTTP triggers in config does not actually create the right config (makes API endpoints etc, but does not create the actual trigger), you have to manually create the triggers
+2. OSS triggers to work, tho keep in mind that one bucket can only have one trigger, you might need to disable your current trigger before doing this
+3. Upload takes time as your node_modules folder size grow, because this plugin actually zips the entire repo and upload to OSS then update the function from OSS
+4. Environment variables is not tested yet, just set them manually
 
-### Pre-requisites
-
-* Node.js v8.x for using the plugin.
-* Serverless CLI v1.26.1+. You can get it by running `npm i -g serverless`.
-* An Aliyun account.
-
-### Example
-
-You can install the following example via:
-
-```sh
-$ serverless install --url https://github.com/aliyun/serverless-function-compute-examples/tree/master/aliyun-nodejs
-```
-
-The structure of the project should look something like this:
-
-```
-├── index.js
-├── node_modules
-├── package.json
-└── serverless.yml
-```
-
-Install `serverless-aliyun-function-compute` plugin for your service.
-
-```yaml
-$ serverless plugin install --name serverless-aliyun-function-compute
-```
-
-`serverless.yml`:
-
-```yaml
-service: serverless-aliyun-hello-world
-
-provider:
-  name: aliyun
-  runtime: nodejs8
-  credentials: ~/.aliyun_credentials # path must be absolute
-
-plugins:
-  - serverless-aliyun-function-compute
-
-package:
-  exclude:
-    - package-lock.json
-    - .gitignore
-    - .git/**
-
-functions:
-  hello:
-    handler: index.hello
-    events:
-      - http:
-          path: /foo
-          method: get
-```
-
-`package.json`:
-
-```json
-{
-  "name": "serverless-aliyun-hello-world",
-  "version": "0.1.0",
-  "description": "Hello World example for aliyun provider with Serverless Framework.",
-  "main": "index.js",
-  "license": "MIT"
-}
-```
-
-`index.js`:
-
-```js
-'use strict';
-
-exports.hello = (event, context, callback) => {
-  const response = {
-    statusCode: 200,
-    body: JSON.stringify({ message: 'Hello!' }),
-  };
-
-  callback(null, response);
-};
-```
-
-You can just create a file with following informations:
-
-```ini
-[default]
-aliyun_access_key_id = nA5hjMhbg9BOoVo
-aliyun_access_key_secret = 098f6bcd4621d373cade4e832627b4f6
-aliyun_account_id = 1504163990726
-```
-
-The `aliyun_access_key_secret` and `aliyun_access_key_id` you can found at https://ak-console.aliyun.com/?#/accesskey . If no any Access Key, you can create a Access Key or use subaccount Access Key. And `aliyun_account_id` can be found at https://account-intl.console.aliyun.com/?#/secure .
-
-After create the credentials file, please make sure pointing the value of the `credentials` field in `serverless.yml` to it.
-
-See [test/project](./test/project) for a more detailed example (including how to access other Aliyun services, how to set up a HTTP POST endpoint, how to set up OSS triggers, etc.).
-
-### Workflow
-
-* Deploy your service to Aliyun:
-
-  ```sh
-  $ serverless deploy
-  ```
-
-  If your service contains HTTP endpoints, you will see the URLs for invoking your functions after a successful deployment.
-
-  Note: you can use `serverless deploy function --function <function name>` to deploy a single function instead of the entire service.
-* Invoke a function directly (without going through the API gateway):
-
-  ```sh
-  $ serverless invoke --function hello
-  ```
-* Retrieve the LogHub logs generated by your function:
-
-  ```sh
-  $ serverless logs --function hello
-  ```
-* Get information on your deployed functions
-
-  ```sh
-  $ serverless info
-  ```
-* When you no longer needs your service, you can remove the service, functions, along with deployed endpoints and triggers using:
-
-  ```sh
-  $ serverless remove
-  ```
-
-  Note: by default RAM roles and policies created during the deployment are not removed. You can use `serverless remove --remove-roles` if you do want to remove them.
-
-## Develop
-
-```sh
-# clone this repo
-git clone git@github.com:aliyun/serverless-aliyun-function-compute.git
-
-# link this module to global node_modules
-cd serverless-aliyun-function-compute
-npm install
-npm link
-
-# try it out by packaging the test project
-cd test/project
-npm install
-npm link serverless-aliyun-function-compute
-serverless package
-```
-
-## License
-
-MIT
+### Other
+1. ```git pull --recurse-submodules``` to update you local repo with this

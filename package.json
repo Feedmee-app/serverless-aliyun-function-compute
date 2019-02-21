@@ -1,7 +1,7 @@
 {
-  "name": "serverless-aliyun-function-compute",
-  "version": "1.2.1",
-  "description": "Provider plugin for the Serverless Framework v1.x which adds support for Aliyun Function Compute",
+  "name": "unocart-serverless-aliyun-function-compute",
+  "version": "1.0.2",
+  "description": "FORKED Provider plugin for the Serverless Framework v1.x which adds support for Aliyun Function Compute",
   "main": "index.js",
   "scripts": {
     "test": "jest",
