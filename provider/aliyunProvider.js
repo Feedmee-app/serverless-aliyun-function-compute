@@ -1,60 +1,60 @@
-'use strict'
+'use strict';
 
-const path = require('path')
-const fs = require('fs')
-const os = require('os')
-const ini = require('ini')
-const co = require('co')
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
+const ini = require('ini');
+const co = require('co');
 
-const _ = require('lodash')
+const _ = require('lodash');
 
-const FCClient = require('@alicloud/fc')
-const OSS = require('ali-oss')
-const CloudAPI = require('@alicloud/cloudapi')
-const RAM = require('@alicloud/ram')
-const SLS = require('@alicloud/log')
+const FCClient = require('@alicloud/fc');
+const OSS = require('ali-oss');
+const CloudAPI = require('@alicloud/cloudapi');
+const RAM = require('@alicloud/ram');
+const SLS = require('@alicloud/log');
 
-const utils = require('../shared/utils')
+const utils = require('../shared/utils');
 
-const PROVIDER_NAME = 'aliyun'
+const PROVIDER_NAME = 'aliyun';
 
-const keySym = Symbol('key')
-const fcClientSym = Symbol('fc-client')
-const agClientSym = Symbol('ag-client')
-const ossClientSym = Symbol('oss-client')
-const ramClientSym = Symbol('ram-client')
-const slsClientSym = Symbol('sls-client')
-const PROJECT_DELAY = 1500
+const keySym = Symbol('key');
+const fcClientSym = Symbol('fc-client');
+const agClientSym = Symbol('ag-client');
+const ossClientSym = Symbol('oss-client');
+const ramClientSym = Symbol('ram-client');
+const slsClientSym = Symbol('sls-client');
+const PROJECT_DELAY = 1500;
 
 class AliyunProvider {
   static getProviderName () {
-    return PROVIDER_NAME
+    return PROVIDER_NAME;
   }
 
   constructor (serverless, options) {
-    this.serverless = serverless
-    this.provider = this
-    this.serverless.setProvider(PROVIDER_NAME, this)
-    this.options = options
-    utils.setDefaults.call(this)
+    this.serverless = serverless;
+    this.provider = this;
+    this.serverless.setProvider(PROVIDER_NAME, this);
+    this.options = options;
+    utils.setDefaults.call(this);
   }
 
   get PROJECT_DELAY () {
-    return PROJECT_DELAY
+    return PROJECT_DELAY;
   }
 
   get key () {
     if (this[ keySym ]) {
-      return this[ keySym ]
+      return this[ keySym ];
     }
-    let credentials = this.serverless.service.provider.credentials
-    const credParts = credentials.split(path.sep)
+    let credentials = this.serverless.service.provider.credentials;
+    const credParts = credentials.split(path.sep);
 
     if (credParts[ 0 ] === '~') {
-      credParts[ 0 ] = os.homedir()
-      credentials = credParts.reduce((memo, part) => path.join(memo, part), '')
+      credParts[ 0 ] = os.homedir();
+      credentials = credParts.reduce((memo, part) => path.join(memo, part), '');
     }
-    const keyFileContent = fs.readFileSync(credentials, 'utf-8').toString()
+    const keyFileContent = fs.readFileSync(credentials, 'utf-8').toString();
     // TODO(joyeecheung) support profiles other than [default]
     this[ keySym ] = ini.parse(keyFileContent).default;
 
@@ -64,154 +64,154 @@ class AliyunProvider {
       'aliyun_access_key_secret'
     ].forEach((field) => {
       if (!this[ keySym ][ field ]) {
-        throw new Error(`Credentials in ${credentials} does not contain ${field}`)
+        throw new Error(`Credentials in ${credentials} does not contain ${field}`);
       }
-    })
+    });
 
-    return this[ keySym ]
+    return this[ keySym ];
   }
 
   get fcClient () {
     if (this[ fcClientSym ]) {
-      return this[ fcClientSym ]
+      return this[ fcClientSym ];
     }
 
-    const key = this.key
+    const key = this.key;
     this[ fcClientSym ] = new FCClient(key.aliyun_account_id, {
       accessKeyID: key.aliyun_access_key_id,
       accessKeySecret: key.aliyun_access_key_secret,
       region: this.options.region
-    })
-    return this[ fcClientSym ]
+    });
+    return this[ fcClientSym ];
   }
 
   get agClient () {
     if (this[ agClientSym ]) {
-      return this[ agClientSym ]
+      return this[ agClientSym ];
     }
 
-    const key = this.key
+    const key = this.key;
     this[ agClientSym ] = new CloudAPI({
       accessKeyId: key.aliyun_access_key_id,
       accessKeySecret: key.aliyun_access_key_secret,
       endpoint: `http://apigateway.${this.options.region}.aliyuncs.com`
-    })
-    return this[ agClientSym ]
+    });
+    return this[ agClientSym ];
   }
 
   get ramClient () {
     if (this[ ramClientSym ]) {
-      return this[ ramClientSym ]
+      return this[ ramClientSym ];
     }
 
-    const key = this.key
+    const key = this.key;
     this[ ramClientSym ] = new RAM({
       accessKeyId: key.aliyun_access_key_id,
       accessKeySecret: key.aliyun_access_key_secret,
       endpoint: 'https://ram.aliyuncs.com'
-    })
-    return this[ ramClientSym ]
+    });
+    return this[ ramClientSym ];
   }
 
   get ossClient () {
     if (this[ ossClientSym ]) {
-      return this[ ossClientSym ]
+      return this[ ossClientSym ];
     }
 
-    const key = this.key
+    const key = this.key;
     this[ ossClientSym ] = OSS({
       accessKeyId: key.aliyun_access_key_id,
       accessKeySecret: key.aliyun_access_key_secret,
       region: this.getOssRegion()
-    })
-    return this[ ossClientSym ]
+    });
+    return this[ ossClientSym ];
   }
 
   resetOssClient (bucketName) {
-    const key = this.key
+    const key = this.key;
     this[ ossClientSym ] = OSS({
       accessKeyId: key.aliyun_access_key_id,
       accessKeySecret: key.aliyun_access_key_secret,
       bucket: bucketName,
       region: this.getOssRegion()
-    })
-    return this[ ossClientSym ]
+    });
+    return this[ ossClientSym ];
   }
 
   get slsClient () {
     if (this[ slsClientSym ]) {
-      return this[ slsClientSym ]
+      return this[ slsClientSym ];
     }
 
-    const key = this.key
+    const key = this.key;
     this[ slsClientSym ] = new SLS({
       accessKeyId: key.aliyun_access_key_id,
       accessKeySecret: key.aliyun_access_key_secret,
       region: this.options.region
-    })
-    return this[ slsClientSym ]
+    });
+    return this[ slsClientSym ];
   }
 
   getStorageBucketId () {
-    return `sls-storage-bucket`
+    return `sls-storage-bucket`;
   }
 
   getOssRegion (region) {
-    return `oss-${this.options.region}`
+    return `oss-${this.options.region}`;
   }
 
   getStorageObjectId () {
-    return 'sls-storage-object'
+    return 'sls-storage-object';
   }
 
   getServiceId () {
-    return 'sls-function-service'
+    return 'sls-function-service';
   }
 
   getServiceName () {
-    return `${this.serverless.service.service}-${this.options.stage}`
+    return `${this.serverless.service.service}-${this.options.stage}`;
   }
 
   getApiGroupLogicalId () {
-    return 'sls-api-group'
+    return 'sls-api-group';
   }
 
   getInvokeRoleLogicalId () {
-    return 'sls-fc-invoke-role'
+    return 'sls-fc-invoke-role';
   }
 
   getExecRoleLogicalId () {
-    return 'sls-fc-exec-role'
+    return 'sls-fc-exec-role';
   }
 
   getLogProjectId () {
-    return 'sls-log-project'
+    return 'sls-log-project';
   }
 
   getLogStoreId () {
-    return 'sls-log-store'
+    return 'sls-log-store';
   }
 
   getLogIndexId () {
-    return 'sls-log-index'
+    return 'sls-log-index';
   }
 
   getApiGroupName () {
-    return `${this.getServiceName()}-api`.replace(/-/g, '_')
+    return `${this.getServiceName()}-api`.replace(/-/g, '_');
   }
 
   getLogProjectName () {
-    const service = this.serverless.service.service
-    return `sls-${this.key.aliyun_account_id}-logs`.replace(/_/g, '-')
+    const service = this.serverless.service.service;
+    return `sls-${this.key.aliyun_account_id}-logs`.replace(/_/g, '-');
   }
 
   getLogStoreName () {
-    const service = this.serverless.service.service
-    return `${service}-${this.options.stage}`
+    const service = this.serverless.service.service;
+    return `${service}-${this.options.stage}`;
   }
 
   getDeploymentBucketName () {
-    return `sls-${this.key.aliyun_account_id}`
+    return `sls-${this.key.aliyun_account_id}`;
   }
 
   // If a function is going to be reused by multiple endpoints,
@@ -219,54 +219,54 @@ class AliyunProvider {
   // So the API name is identified by just
   // eventType and funcName
   getEventName (eventType, funcName) {
-    return `sls-${eventType}-${funcName}`.replace(/-/g, '_')
+    return `sls-${eventType}-${funcName}`.replace(/-/g, '_');
   }
 
   getFunctionLogicalId (name) {
-    return `sls-${name}`
+    return `sls-${name}`;
   }
 
   getApiGroupDesc () {
-    const service = this.getServiceName()
+    const service = this.getServiceName();
     return `API group for Function Compute service ${service}, generated by ` +
-      'the Serverless framework.'
+      'the Serverless framework.';
   }
 
   getApiDesc (eventType, funcName) {
-    const service = this.getServiceName()
+    const service = this.getServiceName();
     return `API for Function Compute function ${funcName} of service ` +
       `${service}, triggered by ${eventType} event, generated by the ` +
-      'Serverless framework.'
+      'Serverless framework.';
   }
 
   isApiType (type) {
-    return type === 'ALIYUN::API::HTTP'
+    return type === 'ALIYUN::API::HTTP';
   }
 
   isTriggerType (type) {
-    return type === 'ALIYUN::FC::Trigger'
+    return type === 'ALIYUN::FC::Trigger';
   }
 
   isLogStoreType (type) {
-    return type === 'ALIYUN::SLS::Store'
+    return type === 'ALIYUN::SLS::Store';
   }
 
   isFunctionType (type) {
-    return type === 'ALIYUN::FC::Function'
+    return type === 'ALIYUN::FC::Function';
   }
 
   getArtifactDirectoryPrefix () {
-    const service = this.serverless.service.service
-    const stage = this.options.stage
-    return `serverless/${service}/${stage}`
+    const service = this.serverless.service.service;
+    const stage = this.options.stage;
+    return `serverless/${service}/${stage}`;
   }
 
   getArtifactDirectoryName () {
-    const prefix = this.getArtifactDirectoryPrefix()
-    const date = new Date()
-    const dateString = `${date.getTime().toString()}-${date.toISOString()}`
+    const prefix = this.getArtifactDirectoryPrefix();
+    const date = new Date();
+    const dateString = `${date.getTime().toString()}-${date.toISOString()}`;
 
-    return `${prefix}/${dateString}`
+    return `${prefix}/${dateString}`;
   }
 
   initializeTemplate () {
@@ -274,10 +274,10 @@ class AliyunProvider {
       path.join(
         __dirname,
         'templates',
-        'core-configuration-template.json'))
+        'core-configuration-template.json'));
 
-    this.serverless.service.provider.compiledConfigurationTemplate = deploymentTemplate
-    return deploymentTemplate
+    this.serverless.service.provider.compiledConfigurationTemplate = deploymentTemplate;
+    return deploymentTemplate;
   }
 
   getStorageBucketResource () {
@@ -287,25 +287,25 @@ class AliyunProvider {
         'BucketName': this.getDeploymentBucketName(),
         'Region': this.options.region
       }
-    }
+    };
   }
 
   getLogProjectResource () {
-    const projectName = this.getLogProjectName()
-    const service = this.serverless.service.service
+    const projectName = this.getLogProjectName();
+    const service = this.serverless.service.service;
     return {
       'Type': 'ALIYUN::SLS::Project',
       'Properties': {
         'projectName': projectName,
         'description': 'Log project for serverless service ' + service + ', generated by the Serverless framework'
       }
-    }
+    };
   }
 
   getLogStoreResource () {
-    const projectName = this.getLogProjectName()
-    const storeName = this.getLogStoreName()
-    const service = this.getServiceName()
+    const projectName = this.getLogProjectName();
+    const storeName = this.getLogStoreName();
+    const service = this.getServiceName();
     return {
       'Type': 'ALIYUN::SLS::Store',
       'Properties': {
@@ -315,12 +315,12 @@ class AliyunProvider {
         'ttl': 30,  // days
         'shardCount': 2
       }
-    }
+    };
   }
 
   getLogIndexResource () {
-    const projectName = this.getLogProjectName()
-    const storeName = this.getLogStoreName()
+    const projectName = this.getLogProjectName();
+    const storeName = this.getLogStoreName();
     return {
       'Type': 'ALIYUN::SLS::Index',
       'Properties': {
@@ -335,18 +335,18 @@ class AliyunProvider {
           }
         }
       }
-    }
+    };
   }
 
   getFunctionResource (funcObject) {
     // Function-wise setting > service-wise setting > default
-    const service = this.serverless.service
+    const service = this.serverless.service;
     const memorySize = funcObject.memorySize
       || service.provider.memorySize
-      || 128
+      || 128;
     const timeout = funcObject.timeout
       || service.provider.timeout
-      || 30
+      || 30;
 
     // TODO(joyeecheung): description
     return {
@@ -363,12 +363,12 @@ class AliyunProvider {
           'ossObjectName': service.package.artifactFilePath
         }
       }
-    }
+    };
   }
 
   getRequestConfig (eventType, event) {
-    const path = event.RequestPath || event.path
-    const requestPath = path.startsWith('/') ? path : `/${path}`
+    const path = event.RequestPath || event.path;
+    const requestPath = path.startsWith('/') ? path : `/${path}`;
     return {
       'RequestProtocol': eventType.toUpperCase(),
       'RequestHttpMethod': (event.RequestHttpMethod || event.method || 'GET').toUpperCase(),
@@ -376,7 +376,7 @@ class AliyunProvider {
       'BodyFormat': (event.BodyFormat || event.bodyFormat || '').toUpperCase(),
       'RequestMode': (event.RequestMode || event.requestMode || 'passthrough').toUpperCase(), //default pass through mode
       'PostBodyDescription': ''
-    }
+    };
   }
 
   getServiceConfig (event, funcObject) {
@@ -391,15 +391,15 @@ class AliyunProvider {
         'RoleArn': undefined
       },
       'ContentTypeValue': event.ContentTypeValue || 'application/json; charset=UTF-8'
-    }
+    };
   }
 
   getType (type) {
     const dict = {
       string: 'String',
       number: 'Number'
-    }
-    return dict[ type.toLowerCase() ]
+    };
+    return dict[ type.toLowerCase() ];
   }
 
   getLocation (loc) {
@@ -408,12 +408,12 @@ class AliyunProvider {
       query: 'Query',
       path: 'Path',
       body: 'Body'
-    }
-    return dict[ loc.toLowerCase() ]
+    };
+    return dict[ loc.toLowerCase() ];
   }
 
   getRequestParameters (event) {
-    let result = []
+    let result = [];
     if (event.parameters) {
       result = event.parameters.map((p) => ({
         ApiParameterName: p.name,
@@ -424,42 +424,42 @@ class AliyunProvider {
         DefaultValue: p.default,
         DemoValue: p.demo,
         Description: p.description || ''
-      }))
+      }));
     }
     if (event.RequestParameters) {
-      result = result.concat(event.RequestParameters)
+      result = result.concat(event.RequestParameters);
     }
-    return result
+    return result;
   }
 
   getServiceParameters (event) {
-    let result = []
+    let result = [];
     if (event.parameters) {
       result = event.parameters.map((p) => ({
         ServiceParameterName: p.name,
         Type: this.getType(p.type),
         Location: this.getLocation(p.location),
         ParameterCatalog: 'REQUEST'
-      }))
+      }));
     }
     if (event.ServiceParameters) {
-      result = result.concat(event.ServiceParameters)
+      result = result.concat(event.ServiceParameters);
     }
-    return result
+    return result;
   }
 
   getServiceParametersMap (event) {
-    let result = []
+    let result = [];
     if (event.parameters) {
       result = event.parameters.map((p) => ({
         ServiceParameterName: p.name,
         RequestParameterName: p.name
-      }))
+      }));
     }
     if (event.ServiceParametersMap) {
-      result = result.concat(event.ServiceParametersMap)
+      result = result.concat(event.ServiceParametersMap);
     }
-    return result
+    return result;
   }
 
   getHttpApiResource (event, funcObject, eventType) {
@@ -480,7 +480,7 @@ class AliyunProvider {
         'ResultType': event.ResultType || 'JSON',
         'ResultSample': event.ResultSample || '{}'
       }
-    }
+    };
   }
 
   getApiGroupResource () {
@@ -493,11 +493,11 @@ class AliyunProvider {
         'GroupId': undefined,
         'SubDomain': undefined
       }
-    }
+    };
   }
 
   getOSSTriggerResource (event, funcObject) {
-    const eventType = 'oss'
+    const eventType = 'oss';
     return {
       'Type': 'ALIYUN::FC::Trigger',
       'Properties': {
@@ -509,7 +509,7 @@ class AliyunProvider {
         'functionName': funcObject.name,
         'serviceName': this.getServiceName()
       }
-    }
+    };
   }
 
   getServiceResource () {
@@ -526,7 +526,7 @@ class AliyunProvider {
         // Arn of the created exec role
         'role': undefined
       }
-    }
+    };
   }
 
   getObjectResource (objectName, localPath) {
@@ -537,24 +537,24 @@ class AliyunProvider {
         'ObjectName': objectName,
         'LocalPath': localPath
       }
-    }
+    };
   }
 
   getInvokeRoleName () {
-    const service = this.getServiceName()
-    const roleName = `sls-${service}-invoke-role`.replace(/_/g, '-')
-    return roleName
+    const service = this.getServiceName();
+    const roleName = `sls-${service}-invoke-role`.replace(/_/g, '-');
+    return roleName;
   }
 
   getExecRoleName () {
-    const service = this.getServiceName()
-    const roleName = `sls-${service}-exec-role`.replace(/_/g, '-')
-    return roleName
+    const service = this.getServiceName();
+    const roleName = `sls-${service}-exec-role`.replace(/_/g, '-');
+    return roleName;
   }
 
   getInvokeRoleResource () {
-    const service = this.getServiceName()
-    const roleName = this.getInvokeRoleName()
+    const service = this.getServiceName();
+    const roleName = this.getInvokeRoleName();
     return {
       'Type': 'ALIYUN::RAM::Role',
       'Properties': {
@@ -580,43 +580,43 @@ class AliyunProvider {
           'RoleName': roleName
         } ]
       }
-    }
+    };
   }
 
   getAGService () {
-    return 'apigateway.aliyuncs.com'
+    return 'apigateway.aliyuncs.com';
   }
 
   getOSSService () {
-    return 'oss.aliyuncs.com'
+    return 'oss.aliyuncs.com';
   }
 
   makeRoleAccessibleFromService (resource, newService) {
     const statement = resource.Properties.AssumeRolePolicyDocument.Statement.find(
-      (stmt) => stmt.Action === 'sts:AssumeRole')
-    const services = statement.Principal.Service
-    const foundServices = services.find((service) => service === newService)
+      (stmt) => stmt.Action === 'sts:AssumeRole');
+    const services = statement.Principal.Service;
+    const foundServices = services.find((service) => service === newService);
     if (!foundServices) {
-      services.push(newService)
+      services.push(newService);
     }
   }
 
   makeRoleAccessibleFromAG (resource) {
-    this.makeRoleAccessibleFromService(resource, this.getAGService())
+    this.makeRoleAccessibleFromService(resource, this.getAGService());
   }
 
   makeRoleAccessibleFromOSS (resource) {
-    this.makeRoleAccessibleFromService(resource, this.getOSSService())
+    this.makeRoleAccessibleFromService(resource, this.getOSSService());
   }
 
   getExecRolePolicyName () {
-    const service = this.getServiceName()
-    return `fc-${service}-access`
+    const service = this.getServiceName();
+    return `fc-${service}-access`;
   }
 
   getExecRoleResource () {
-    const service = this.getServiceName()
-    const roleName = this.getExecRoleName()
+    const service = this.getServiceName();
+    const roleName = this.getExecRoleName();
     return {
       'Type': 'ALIYUN::RAM::Role',
       'Properties': {
@@ -644,18 +644,18 @@ class AliyunProvider {
           }
         } ]
       }
-    }
+    };
   }
 
   letExecRoleAccessLog (resource) {
-    this.addRamRoleStatementsToExecRole(resource, this.getLogWritePolicyStatment())
+    this.addRamRoleStatementsToExecRole(resource, this.getLogWritePolicyStatment());
   }
 
   // https://help.aliyun.com/document_detail/29049.html
   getLogWritePolicyStatment () {
-    const project = this.getLogProjectName()
-    const store = this.getLogStoreName()
-    const account = this.key.aliyun_account_id
+    const project = this.getLogProjectName();
+    const store = this.getLogStoreName();
+    const account = this.key.aliyun_account_id;
     return {
       'Action': [
         'log:PostLogStoreLogs'
@@ -664,43 +664,43 @@ class AliyunProvider {
         `acs:log:*:${account}:project/${project}/logstore/${store}`
       ],
       'Effect': 'Allow'
-    }
+    };
   }
 
   addRamRoleStatementsToExecRole (resource, statement) {
-    const execRolePolicy = this.getExecRolePolicyName()
+    const execRolePolicy = this.getExecRolePolicyName();
     const policy = resource.Properties.Policies.find(
-      (policy) => policy.PolicyName === execRolePolicy)
-    const statements = policy.PolicyDocument.Statement
-    const foundStatement = statements.find((item) => _.isEqual(item, statement))
+      (policy) => policy.PolicyName === execRolePolicy);
+    const statements = policy.PolicyDocument.Statement;
+    const foundStatement = statements.find((item) => _.isEqual(item, statement));
     if (!foundStatement) {
-      statements.push(statement)
+      statements.push(statement);
     }
   }
 
   async getLogProject (projectName) {
     try {
-      return await this.slsClient.getProject(projectName)
+      return await this.slsClient.getProject(projectName);
     } catch (err) {
       if (err.code === 'ProjectNotExist') {
-        return undefined
+        return undefined;
       }
-      throw err
+      throw err;
     }
   }
 
   sleep (timeout) {
     return new Promise((resolve, reject) => {
-      setTimeout(() => resolve(), timeout)
-    })
+      setTimeout(() => resolve(), timeout);
+    });
   }
 
   async createLogProject (projectName, project) {
     await this.slsClient.createProject(projectName, {
       description: project.description
-    })
-    await this.sleep(PROJECT_DELAY)
-    return this.getLogProject(projectName)
+    });
+    await this.sleep(PROJECT_DELAY);
+    return this.getLogProject(projectName);
   }
 
   /**
@@ -708,34 +708,34 @@ class AliyunProvider {
    * @return {logstores: [], total: number, count: number}
    */
   async getLogStoresForProject (projectName) {
-    const res = await this.slsClient.listLogstore(projectName)
-    return res.logstores
+    const res = await this.slsClient.listLogstore(projectName);
+    return res.logstores;
   }
 
   async getLogStore (projectName, storeName) {
     try {
-      return await this.slsClient.getLogStore(projectName, storeName)
+      return await this.slsClient.getLogStore(projectName, storeName);
     } catch (err) {
       if (err.code === 'LogStoreNotExist') {
-        return undefined
+        return undefined;
       }
-      throw err
+      throw err;
     }
   }
 
   async createLogStore (projectName, storeName, store) {
-    await this.slsClient.createLogStore(projectName, storeName, store)
-    return this.getLogStore(projectName, storeName)
+    await this.slsClient.createLogStore(projectName, storeName, store);
+    return this.getLogStore(projectName, storeName);
   }
 
   async getLogIndex (projectName, storeName) {
     try {
-      return await this.slsClient.getIndexConfig(projectName, storeName)
+      return await this.slsClient.getIndexConfig(projectName, storeName);
     } catch (err) {
       if (err.code === 'IndexConfigNotExist') {
-        return undefined
+        return undefined;
       }
-      throw err
+      throw err;
     }
   }
 
@@ -744,29 +744,29 @@ class AliyunProvider {
       ttl: index.ttl,
       keys: index.keys,
       line: index.line
-    })
-    await this.getLogIndex(projectName, storeName)
+    });
+    await this.getLogIndex(projectName, storeName);
   }
 
   async getLogsIfAvailable (projectName, storeName, days, query, count) {
-    const from = new Date()
-    const to = new Date(from)
-    from.setDate(from.getDate() - days)
+    const from = new Date();
+    const to = new Date(from);
+    from.setDate(from.getDate() - days);
 
     const fullQuery = Object.keys(query)
-      .map((key) => `${key}:${query[ key ]}`).join(' or ')
+      .map((key) => `${key}:${query[ key ]}`).join(' or ');
     try {
       return await this.slsClient.getLogs(projectName, storeName, from, to, {
         query: fullQuery,
         line: count
-      })
+      });
     } catch (err) {
       if (err.code === 'IndexConfigNotExist' ||
         err.code === 'LogStoreNotExist' ||
         err.code === 'ProjectNotExist') {
-        return []
+        return [];
       }
-      throw err
+      throw err;
     }
   }
 
@@ -777,50 +777,50 @@ class AliyunProvider {
   getBucket (bucketName) {
     // TODO(joyeecheung): handle buckets with the same name
     // in a different region
-    const ossClient = this.ossClient
-    return co(function * getBucket () {
-      const res = yield ossClient.listBuckets({ prefix: bucketName })
-      if (!res.buckets) {return undefined}
-      const bucket = res.buckets.find((b) => b.name === bucketName)
-      return bucket
-    })
+    const ossClient = this.ossClient;
+    return co(function* getBucket () {
+      const res = yield ossClient.listBuckets({ prefix: bucketName });
+      if (!res.buckets) {return undefined;}
+      const bucket = res.buckets.find((b) => b.name === bucketName);
+      return bucket;
+    });
   }
 
   /**
    * @param {string} bucketName
    */
   createBucket (bucketName) {
-    const ossClient = this.ossClient
-    const region = this.getOssRegion()
-    return co(function * createBucket () {
-      return yield ossClient.putBucket(bucketName, region)
-    })
+    const ossClient = this.ossClient;
+    const region = this.getOssRegion();
+    return co(function* createBucket () {
+      return yield ossClient.putBucket(bucketName, region);
+    });
   }
 
   /**
    * @param {string} bucketName
    */
   deleteBucket (bucketName) {
-    const ossClient = this.ossClient
-    const region = this.getOssRegion()
-    return co(function * deleteBucket () {
-      return yield ossClient.deleteBucket(bucketName, region)
-    })
+    const ossClient = this.ossClient;
+    const region = this.getOssRegion();
+    return co(function* deleteBucket () {
+      return yield ossClient.deleteBucket(bucketName, region);
+    });
   }
 
   uploadObject (objectName, filePath) {
-    const ossClient = this.ossClient
-    return co(function * uploadObject () {
-      return yield ossClient.put(objectName, filePath, { timeout: 600000 })
-    })
+    const ossClient = this.ossClient;
+    return co(function* uploadObject () {
+      return yield ossClient.put(objectName, filePath, { timeout: 600000 });
+    });
   }
 
   deleteObjects (objectNames) {
-    const ossClient = this.ossClient
-    return co(function * deleteObjects () {
+    const ossClient = this.ossClient;
+    return co(function* deleteObjects () {
       // TODO(joyeecheung): handle partial failures
-      return yield ossClient.deleteMulti(objectNames)
-    })
+      return yield ossClient.deleteMulti(objectNames);
+    });
   }
 
   /**
@@ -829,12 +829,12 @@ class AliyunProvider {
    */
   getObjects (props) {
     // TODO(joyeecheung): handle >= 1000 objects
-    const ossClient = this.ossClient
-    const query = Object.assign({ 'max-keys': 999 }, props)
-    return co(function * listObjects () {
-      const res = yield ossClient.list(query)
-      return res.objects || []
-    })
+    const ossClient = this.ossClient;
+    const query = Object.assign({ 'max-keys': 999 }, props);
+    return co(function* listObjects () {
+      const res = yield ossClient.list(query);
+      return res.objects || [];
+    });
   }
 
   // http://doxmate.cool/aliyun/fc-nodejs-sdk/api.html
@@ -845,10 +845,10 @@ class AliyunProvider {
    */
   async getService (serviceName) {
     try {
-      return await this.fcClient.getService(serviceName)
+      return await this.fcClient.getService(serviceName);
     } catch (err) {
-      if (err.code === 'ServiceNotFound') {return undefined}
-      throw err
+      if (err.code === 'ServiceNotFound') {return undefined;}
+      throw err;
     }
   }
 
@@ -860,11 +860,11 @@ class AliyunProvider {
    * https://help.aliyun.com/document_detail/52877.html#serviceresponse
    */
   createService (serviceName, spec) {
-    return this.fcClient.createService(serviceName, spec)
+    return this.fcClient.createService(serviceName, spec);
   }
 
   deleteService (serviceName, options) {
-    return this.fcClient.deleteService(serviceName, options)
+    return this.fcClient.deleteService(serviceName, options);
   }
 
   /**
@@ -873,7 +873,7 @@ class AliyunProvider {
    * @return {ServiceResponse}
    */
   updateService (serviceName, options) {
-    return this.fcClient.updateService(serviceName, options)
+    return this.fcClient.updateService(serviceName, options);
   }
 
   /**
@@ -883,12 +883,12 @@ class AliyunProvider {
    */
   async getFunction (serviceName, functionName) {
     try {
-      return await this.fcClient.getFunction(serviceName, functionName)
+      return await this.fcClient.getFunction(serviceName, functionName);
     } catch (err) {
       if (err.code === 'FunctionNotFound') {
-        return undefined
+        return undefined;
       }
-      throw err
+      throw err;
     }
   }
 
@@ -901,8 +901,8 @@ class AliyunProvider {
    * https://help.aliyun.com/document_detail/52877.html#functionresponse
    */
   createFunction (serviceName, functionName, options) {
-    const config = Object.assign({ functionName }, options)
-    return this.fcClient.createFunction(serviceName, config)
+    const config = Object.assign({ functionName }, options);
+    return this.fcClient.createFunction(serviceName, config);
   }
 
   /**
@@ -912,8 +912,8 @@ class AliyunProvider {
    * @return {FunctionResponse}
    */
   updateFunction (serviceName, functionName, options) {
-    const config = Object.assign({ functionName }, options)
-    return this.fcClient.updateFunction(serviceName, functionName, config)
+    const config = Object.assign({ functionName }, options);
+    return this.fcClient.updateFunction(serviceName, functionName, config);
   }
 
   /**
@@ -922,10 +922,10 @@ class AliyunProvider {
    * TODO(joyeecheung): paging
    */
   async getFunctions (serviceName) {
-    const res = await this.fcClient.listFunctions(serviceName)
-    const functions = res.functions
-    if (!functions) {return []}
-    return functions
+    const res = await this.fcClient.listFunctions(serviceName);
+    const functions = res.functions;
+    if (!functions) {return [];}
+    return functions;
   }
 
   /**
@@ -934,7 +934,7 @@ class AliyunProvider {
    * @return {object}
    */
   deleteFunction (serviceName, functionName) {
-    return this.fcClient.deleteFunction(serviceName, functionName)
+    return this.fcClient.deleteFunction(serviceName, functionName);
   }
 
   /**
@@ -945,7 +945,7 @@ class AliyunProvider {
    * https://help.aliyun.com/document_detail/52877.html#invokeresponse
    */
   invokeFunction (serviceName, functionName, event) {
-    return this.fcClient.invokeFunction(serviceName, functionName, event)
+    return this.fcClient.invokeFunction(serviceName, functionName, event);
   }
 
   /**
@@ -958,8 +958,8 @@ class AliyunProvider {
   createTrigger (serviceName, functionName, trigger, role) {
     const triggerProps = Object.assign({}, trigger, {
       invocationRole: role.Arn
-    })
-    return this.fcClient.createTrigger(serviceName, functionName, triggerProps)
+    });
+    return this.fcClient.createTrigger(serviceName, functionName, triggerProps);
   }
 
   /**
@@ -970,18 +970,18 @@ class AliyunProvider {
    */
   async getTrigger (serviceName, functionName, triggerName) {
     try {
-      return await this.fcClient.getTrigger(serviceName, functionName, triggerName)
+      return await this.fcClient.getTrigger(serviceName, functionName, triggerName);
     } catch (err) {
       if ([ 'ServiceNotFound', 'FunctionNotFound', 'TriggerNotFound' ].indexOf(err.code)) {
-        return undefined
+        return undefined;
       }
-      throw err
+      throw err;
     }
   }
 
   async listTriggers (serviceName, functionName) {
-    const res = await this.fcClient.listTriggers(serviceName, functionName)
-    return res.triggers || []
+    const res = await this.fcClient.listTriggers(serviceName, functionName);
+    return res.triggers || [];
   }
 
   /**
@@ -994,9 +994,9 @@ class AliyunProvider {
   updateTrigger (serviceName, functionName, triggerName, trigger, role) {
     const triggerProps = Object.assign({}, trigger, {
       invocationRole: role.Arn
-    })
+    });
     return this.fcClient.updateTrigger(
-      serviceName, functionName, triggerName, triggerProps)
+      serviceName, functionName, triggerName, triggerProps);
   }
 
   /**
@@ -1006,7 +1006,7 @@ class AliyunProvider {
    * @return {}
    */
   deleteTrigger (serviceName, functionName, triggerName) {
-    return this.fcClient.deleteTrigger(serviceName, functionName, triggerName)
+    return this.fcClient.deleteTrigger(serviceName, functionName, triggerName);
   }
 
   // https://help.aliyun.com/document_detail/43595.html
@@ -1020,15 +1020,15 @@ class AliyunProvider {
     // TODO(joyeecheung): pagination
     const res = await this.agClient.describeApiGroups({
       GroupName: groupName
-    })
+    });
 
     if (res.TotalCount === 0) {
-      return undefined
+      return undefined;
     }
-    const groups = res.ApiGroupAttributes.ApiGroupAttribute
+    const groups = res.ApiGroupAttributes.ApiGroupAttribute;
     const group = groups.find(
-      (item) => item.GroupName === groupName)
-    return group
+      (item) => item.GroupName === groupName);
+    return group;
   }
 
   /**
@@ -1036,7 +1036,7 @@ class AliyunProvider {
    * https://help.aliyun.com/document_detail/43617.html
    */
   deleteApiGroup (group) {
-    return this.agClient.deleteApiGroup(group)
+    return this.agClient.deleteApiGroup(group);
   }
 
   /**
@@ -1045,7 +1045,7 @@ class AliyunProvider {
    * https://help.aliyun.com/document_detail/43611.html
    */
   createApiGroup (props) {
-    return this.agClient.createApiGroup(props)
+    return this.agClient.createApiGroup(props);
   }
 
   /**
@@ -1057,20 +1057,20 @@ class AliyunProvider {
     try {
       const res = await this.ramClient.getRole({
         RoleName: roleName
-      }, { timeout: 10000 })
-      return res.Role
+      }, { timeout: 10000 });
+      return res.Role;
     } catch (err) {
       if (err.name === 'EntityNotExist.RoleError') {
-        return undefined
+        return undefined;
       }
-      throw err
+      throw err;
     }
   }
 
   deleteRole (roleName) {
     return this.ramClient.deleteRole({
       RoleName: roleName
-    })
+    });
   }
 
   /**
@@ -1083,8 +1083,8 @@ class AliyunProvider {
       RoleName: role.RoleName,
       Description: role.Description,
       AssumeRolePolicyDocument: JSON.stringify(role.AssumeRolePolicyDocument)
-    }, { timeout: 10000 })
-    return res.Role
+    }, { timeout: 10000 });
+    return res.Role;
   }
 
   /**
@@ -1094,8 +1094,8 @@ class AliyunProvider {
   async getPoliciesForRole (roleName) {
     const res = await this.ramClient.listPoliciesForRole({
       RoleName: roleName
-    }, { timeout: 10000 })
-    return res.Policies.Policy
+    }, { timeout: 10000 });
+    return res.Policies.Policy;
   }
 
   /**
@@ -1108,13 +1108,13 @@ class AliyunProvider {
       const res = await this.ramClient.getPolicy({
         PolicyName: policyName,
         PolicyType: policyType
-      })
-      return res.Policy
+      });
+      return res.Policy;
     } catch (err) {
       if (err.name === 'EntityNotExist.PolicyError') {
-        return undefined
+        return undefined;
       }
-      throw err
+      throw err;
     }
   }
 
@@ -1127,7 +1127,7 @@ class AliyunProvider {
       PolicyName: policy.PolicyName,
       Description: policy.Description,
       PolicyDocument: JSON.stringify(policy.PolicyDocument)
-    })
+    });
   }
 
   /**
@@ -1140,7 +1140,7 @@ class AliyunProvider {
       RoleName: role.RoleName,
       PolicyName: policy.PolicyName,
       PolicyType: policy.PolicyType
-    })
+    });
   }
 
   /**
@@ -1152,7 +1152,7 @@ class AliyunProvider {
       RoleName: role.RoleName,
       PolicyName: policy.PolicyName,
       PolicyType: policy.PolicyType
-    })
+    });
   }
 
   /**
@@ -1161,16 +1161,16 @@ class AliyunProvider {
    * https://help.aliyun.com/document_detail/43626.html
    */
   async getApis (props) {
-    const query = Object.assign({}, props, { PageSize: 50 })
-    const res = await this.agClient.describeApis(query)
+    const query = Object.assign({}, props, { PageSize: 50 });
+    const res = await this.agClient.describeApis(query);
     if (!res.ApiSummarys) {
-      return []
+      return [];
     }
-    const apis = res.ApiSummarys.ApiSummary
+    const apis = res.ApiSummarys.ApiSummary;
     if (res.TotalCount > apis.length) {
       // TODO(joyeecheung): pagination
     }
-    return apis
+    return apis;
   }
 
   /**
@@ -1180,20 +1180,20 @@ class AliyunProvider {
     const query = {
       GroupId: group.GroupId,
       ApiId: api.ApiId
-    }
-    return this.agClient.describeApi(query)
+    };
+    return this.agClient.describeApi(query);
   }
 
   getApiProps (group, role, api) {
     const toStringify = [ 'RequestConfig', 'ServiceConfig',
-      'RequestParameters', 'ServiceParameters', 'ServiceParametersMap' ]
-    const props = _.cloneDeep(api)
-    props.ServiceConfig.FunctionComputeConfig.RoleArn = role.Arn
-    props.GroupId = group.GroupId
+      'RequestParameters', 'ServiceParameters', 'ServiceParametersMap' ];
+    const props = _.cloneDeep(api);
+    props.ServiceConfig.FunctionComputeConfig.RoleArn = role.Arn;
+    props.GroupId = group.GroupId;
     toStringify.forEach((key) => {
-      props[ key ] = JSON.stringify(props[ key ])
-    })
-    return props
+      props[ key ] = JSON.stringify(props[ key ]);
+    });
+    return props;
   }
 
   /**
@@ -1201,8 +1201,8 @@ class AliyunProvider {
    * https://help.aliyun.com/document_detail/43623.html
    */
   createApi (group, role, api) {
-    const props = this.getApiProps(group, role, api)
-    return this.agClient.createApi(props)
+    const props = this.getApiProps(group, role, api);
+    return this.agClient.createApi(props);
   }
 
   /**
@@ -1215,8 +1215,8 @@ class AliyunProvider {
     const props = {
       GroupId: group.GroupId,
       ApiId: api.ApiId
-    }
-    return this.agClient.deleteApi(props)
+    };
+    return this.agClient.deleteApi(props);
   }
 
   /**
@@ -1224,8 +1224,8 @@ class AliyunProvider {
    * https://help.aliyun.com/document_detail/43623.html
    */
   updateApi (group, role, api) {
-    const props = this.getApiProps(group, role, api)
-    return this.agClient.modifyApi(props)
+    const props = this.getApiProps(group, role, api);
+    return this.agClient.modifyApi(props);
   }
 
   deployApi (group, api) {
@@ -1234,8 +1234,8 @@ class AliyunProvider {
       ApiId: api.ApiId,
       StageName: 'RELEASE',  // TODO(joyeecheung): should be based on this.options.stage?
       Description: 'Release by the Serverless framework'
-    }
-    return this.agClient.deployApi(props)
+    };
+    return this.agClient.deployApi(props);
   }
 
   /**
@@ -1247,18 +1247,18 @@ class AliyunProvider {
       GroupId: props.GroupId,
       StageName: 'RELEASE',  // TODO(joyeecheung): should be based on this.options.stage?
       PageSize: 50  // TODO(joyeecheung): pagination
-    }
-    const res = await this.agClient.describeDeployedApis(query)
+    };
+    const res = await this.agClient.describeDeployedApis(query);
     if (!res.DeployedApis) {
-      return []
+      return [];
     }
-    const apis = res.DeployedApis.DeployedApiItem
+    const apis = res.DeployedApis.DeployedApiItem;
     if (res.TotalCount > apis.length) {
       // TODO(joyeecheung): pagination
     }
     return apis.filter((item) => {
-      item.RegionId === this.options.region
-    })
+      item.RegionId === this.options.region;
+    });
   }
 
   abolishApi (group, api) {
@@ -1266,9 +1266,9 @@ class AliyunProvider {
       GroupId: group.GroupId,
       ApiId: api.ApiId,
       StageName: 'RELEASE'  // TODO(joyeecheung): should be based on this.options.stage?
-    }
-    return this.agClient.abolishApi(props)
+    };
+    return this.agClient.abolishApi(props);
   }
 }
 
-module.exports = AliyunProvider
+module.exports = AliyunProvider;
